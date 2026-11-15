@@ -1,0 +1,28 @@
+name: 업데이트 받기
+
+# 원본 템플릿의 최신 버전을 내 저장소로 가져옵니다.
+# 사용법: Actions 탭 → "업데이트 받기" → Run workflow
+# 가져온 뒤에는 Vercel이 자동으로 다시 배포합니다.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 원본 템플릿에서 최신 코드 가져오기
+        run: |
+          git config user.name "class-homepage-updater"
+          git config user.email "class-homepage-updater@users.noreply.github.com"
+          git remote add template https://github.com/seon170419-dev/class-homepage.git
+          git fetch template main
+          git merge template/main --allow-unrelated-histories -X theirs -m "원본 템플릿 최신 버전으로 업데이트"
+          git push
