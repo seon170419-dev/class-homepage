@@ -38,7 +38,7 @@ export default function StudentLoginPage() {
                 id="loginId"
                 name="loginId"
                 autoComplete="username"
-                placeholder="예: THP0913 (이름 이니셜+생일)"
+                placeholder="예: MJK0315 (이름 이니셜+생일)"
                 required
               />
             </div>
