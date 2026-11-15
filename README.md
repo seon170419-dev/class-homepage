@@ -7,7 +7,7 @@
 
 [![Vercel로 설치하기](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fseon170419-dev%2Fclass-homepage&project-name=class-homepage&repository-name=class-homepage&env=SETUP_CODE&envDescription=%EC%84%A4%EC%B9%98+%ED%99%94%EB%A9%B4%EC%97%90%EC%84%9C+%ED%95%9C+%EB%B2%88+%EC%9E%85%EB%A0%A5%ED%95%A0+%EC%84%A4%EC%B9%98+%EC%BD%94%EB%93%9C%EC%98%88%EC%9A%94.+%EC%95%84%EB%AC%B4+%EB%8B%A8%EC%96%B4%EB%82%98+%EC%88%AB%EC%9E%90%EB%A5%BC+%EC%A0%95%ED%95%B4%EC%84%9C+%EC%A0%81%EA%B3%A0+%EA%BC%AD+%EA%B8%B0%EC%96%B5%ED%95%B4+%EB%91%90%EC%84%B8%EC%9A%94.+%28%EC%98%88%3A+haengbok2026%29)
 
-처음이라면 **[설치 가이드북(Word)](docs/우리반홈페이지_설치가이드북.docx)**을 먼저 내려받아 한 단계씩 따라 하세요.
+처음이라면 [**설치 가이드북(Word)**](docs/우리반홈페이지_설치가이드북.docx)을 먼저 내려받아 한 단계씩 따라 하세요.
 
 ### 설치 순서 요약
 1. **GitHub 가입** — github.com에서 이메일로 가입 (3분)
