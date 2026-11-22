@@ -1,0 +1,385 @@
+// 학급 홈페이지 데이터 모델
+// Supabase(Postgres) 사용. 로컬 개발과 배포 모두 동일한 DB를 사용한다.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- 사이트 설정 (설치 마법사에서 입력, 항상 id="site" 한 행) ----------
+
+model SiteSetting {
+  id               String   @id @default("site")
+  siteTitle        String   @default("우리 반 홈페이지")
+  schoolName       String?
+  className        String? // 예: "1학년 10반"
+  teacherName      String?
+  homeLinkUrl      String? // 홈 화면 날짜 옆 바로가기 링크 (선택)
+  homeLinkLabel    String?
+  homeLinkImageUrl String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// ---------- 계정 ----------
+
+model Teacher {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String   @default("담임 선생님")
+  createdAt    DateTime @default(now())
+}
+
+model Student {
+  id           String @id @default(cuid())
+  name         String
+  loginId      String @unique
+  passwordHash String
+  birthDate    String // MM-DD 형식 저장 (연도 불필요)
+  number       Int? // 출석번호 (선택)
+
+  birthdayPublic Boolean @default(true) // 생일 자체 공개 여부
+  popupOptIn     Boolean @default(true) // 생일 팝업 노출 동의
+  commentOptIn   Boolean @default(true) // 축하 코멘트 기능 사용 동의
+
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  createdAt DateTime @default(now())
+
+  submissions              Submission[]
+  announcementReads        AnnouncementRead[]
+  birthdayMessagesReceived BirthdayMessage[]   @relation("BirthdayTarget")
+  birthdayMessagesSent     BirthdayMessage[]   @relation("BirthdayAuthor")
+  complimentsReceived      Compliment[]        @relation("ComplimentTarget")
+  complimentsSent          Compliment[]        @relation("ComplimentAuthor")
+  suggestions              Suggestion[]
+  counselingRequests       CounselingRequest[]
+  classRoles               ClassRole[]
+  activityRecords          ActivityRecord[]
+}
+
+// ---------- 공지 ----------
+
+enum AnnouncementCategory {
+  URGENT
+  ASSESSMENT
+  SCHOOL_EVENT
+  RECRUIT
+  SUPPLIES
+  CLASS_NOTICE
+}
+
+model Announcement {
+  id             String               @id @default(cuid())
+  title          String
+  body           String
+  category       AnnouncementCategory @default(CLASS_NOTICE)
+  pinned         Boolean              @default(false)
+  visibleOnHome  Boolean              @default(true) // 홈 대시보드 노출 여부 (게시/취소)
+  attachmentUrl  String?
+  attachmentName String?
+  createdAt      DateTime             @default(now())
+
+  reads AnnouncementRead[]
+}
+
+model AnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  studentId      String
+  readAt         DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, studentId])
+}
+
+// ---------- 일정/캘린더 (홈·캘린더·제출함 공통 소스) ----------
+
+enum ScheduleCategory {
+  ASSESSMENT // 수행평가
+  EXAM // 지필평가
+  SCHOOL_EVENT // 학교행사
+  RECRUIT // 모집(행사 신청 등)
+  CLASS_EVENT // 학급일정
+  SUPPLIES // 준비물/과제
+}
+
+model ScheduleItem {
+  id                 String           @id @default(cuid())
+  title              String
+  category           ScheduleCategory
+  subject            String? // 과목 (수행평가인 경우)
+  startAt            DateTime // 시작일(제출 시작/행사 시작 등)
+  dueAt              DateTime // 마감일시
+  description        String?
+  submissionMethod   String?
+  submissionLink     String?
+  materials          String?
+  submissionRequired Boolean          @default(false)
+  notifyFrom         DateTime? // 이 시점부터 "곧 마감"에 노출
+  createdAt          DateTime         @default(now())
+
+  submissions Submission[]
+}
+
+enum SubmissionStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  CONFIRMING
+  NEEDS_REVISION
+}
+
+model Submission {
+  id             String           @id @default(cuid())
+  scheduleItemId String
+  studentId      String
+  status         SubmissionStatus @default(NOT_SUBMITTED)
+  submittedAt    DateTime?
+  updatedAt      DateTime         @updatedAt
+
+  scheduleItem ScheduleItem @relation(fields: [scheduleItemId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleItemId, studentId])
+}
+
+// ---------- 생일 축하 ----------
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BirthdayMessage {
+  id              String         @id @default(cuid())
+  targetStudentId String
+  authorStudentId String
+  message         String
+  status          ApprovalStatus @default(PENDING)
+  flaggedByAi     Boolean        @default(false)
+  aiFlagReason    String?
+  createdAt       DateTime       @default(now())
+
+  target Student @relation("BirthdayTarget", fields: [targetStudentId], references: [id], onDelete: Cascade)
+  author Student @relation("BirthdayAuthor", fields: [authorStudentId], references: [id], onDelete: Cascade)
+}
+
+// ---------- 익명 칭찬함 ----------
+
+enum ComplimentVisibility {
+  CLASS_PUBLIC
+  TARGET_ONLY
+  TEACHER_ONLY
+}
+
+enum ComplimentValueTag {
+  CARE // 배려
+  RESPONSIBILITY // 책임감
+  COOPERATION // 협력
+  DILIGENCE // 성실
+  CHALLENGE // 도전
+  SERVICE // 봉사
+  CONFLICT_RESOLUTION // 갈등 해결
+}
+
+model Compliment {
+  id              String               @id @default(cuid())
+  targetStudentId String
+  authorStudentId String
+  occurredAt      String // "언제 있었던 일인가요" (자유 텍스트)
+  whatDidText     String // 어떤 행동을 했는지
+  whatToLearnText String // 본받고 싶은 점
+  valueTag        ComplimentValueTag
+  visibility      ComplimentVisibility @default(CLASS_PUBLIC)
+  status          ApprovalStatus       @default(PENDING)
+  flaggedByAi     Boolean              @default(false)
+  aiFlagReason    String?
+  featuredOnHome  Boolean              @default(false) // 담임이 홈 화면 대시보드에 게시했는지
+  createdAt       DateTime             @default(now())
+
+  target Student @relation("ComplimentTarget", fields: [targetStudentId], references: [id], onDelete: Cascade)
+  author Student @relation("ComplimentAuthor", fields: [authorStudentId], references: [id], onDelete: Cascade)
+}
+
+// ---------- 건의함 ----------
+
+enum SuggestionCategory {
+  SEATING
+  CLEANING
+  CLASS_EVENT
+  CLASSROOM_ENV
+  CLASS_RULE
+  ETC
+}
+
+enum SuggestionVisibility {
+  TEACHER_ONLY
+  CLASS_MEETING_PUBLIC
+}
+
+model Suggestion {
+  id         String               @id @default(cuid())
+  authorId   String
+  category   SuggestionCategory
+  content    String
+  visibility SuggestionVisibility @default(TEACHER_ONLY)
+  status     ApprovalStatus       @default(PENDING)
+  createdAt  DateTime             @default(now())
+
+  author Student @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+// ---------- 상담 신청 (내용은 저장하지 않고 메타만) ----------
+
+enum CounselingCategory {
+  ACADEMIC
+  CAREER
+  FRIENDSHIP
+  SCHOOL_LIFE
+  FAMILY
+  OTHER
+  URGENT
+}
+
+enum CounselingStatus {
+  REQUESTED
+  SCHEDULED
+  DONE
+}
+
+model CounselingRequest {
+  id            String             @id @default(cuid())
+  studentId     String
+  category      CounselingCategory
+  preferredTime String?
+  urgent        Boolean            @default(false)
+  status        CounselingStatus   @default(REQUESTED)
+  teacherNote   String? // 담임이 남기는 확정 시간/메모 (학생에게 노출)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @default(now()) @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ---------- 분실물 게시판 ----------
+
+enum LostItemStatus {
+  UNCLAIMED
+  CLAIMED
+}
+
+model LostItem {
+  id            String         @id @default(cuid())
+  title         String
+  photoUrl      String?
+  foundLocation String
+  status        LostItemStatus @default(UNCLAIMED)
+  createdAt     DateTime       @default(now())
+}
+
+// ---------- 자료실 ----------
+
+enum ResourceCategory {
+  NOTICE_LETTER // 가정통신문
+  FIELD_TRIP // 체험학습
+  ATTENDANCE // 출결 서류
+  ASSESSMENT_FORM // 수행평가 양식
+  SURVEY // 설문 링크
+  SCHOOL_LIFE // 학교생활 안내
+  FAQ
+  ETC
+}
+
+model Resource {
+  id        String           @id @default(cuid())
+  title     String
+  category  ResourceCategory
+  url       String
+  createdAt DateTime         @default(now())
+}
+
+// ---------- 당번/역할 ----------
+
+model ClassRole {
+  id        String   @id @default(cuid())
+  studentId String
+  role      String
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ---------- 나의 활동 기록 (생기부 초안) ----------
+
+enum ActivityArea {
+  AUTONOMY // 자율활동
+  CAREER // 진로활동
+  SERVICE_COMMUNITY // 봉사·공동체
+  CLUB // 동아리
+  ETC
+}
+
+enum ActivityStatus {
+  COLLECTING // 자료 수집 중
+  DRAFTED // 초안 작성
+  STUDENT_CONFIRMED // 학생 확인
+  TEACHER_REVIEW // 교사 검토
+  FINALIZED // 반영 완료
+}
+
+model ActivityRecord {
+  id                       String       @id @default(cuid())
+  studentId                String
+  date                     DateTime
+  area                     ActivityArea
+  title                    String
+  role                     String?
+  actions                  String? // 구체적으로 한 행동
+  difficulty               String? // 어려웠던 점
+  solution                 String? // 어떻게 해결했는지
+  learned                  String? // 새롭게 알게 된 점
+  evidenceUrl              String?
+  peerOrTeacherConfirmable Boolean      @default(false)
+
+  status           ActivityStatus @default(COLLECTING)
+  teacherDraftText String? // AI 초안/담임 작성 생기부 문장
+  studentNote      String? // 학생의 사실확인/보완 요청
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  studentEditedAt DateTime? // 학생이 작성 내용을 수정한 시각 (담임 검토 후 수정 여부 표시용)
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ---------- 학급 목표 ----------
+
+model ClassGoal {
+  id           String   @id @default(cuid())
+  title        String
+  targetValue  Int
+  currentValue Int      @default(0)
+  month        String // "2026-07"
+  createdAt    DateTime @default(now())
+}
+
+// ---------- 학급 아카이브 ----------
+
+model ArchiveEntry {
+  id          String   @id @default(cuid())
+  month       String // "2026-07"
+  title       String
+  photoUrls   String // JSON 배열 문자열로 저장 (SQLite는 배열 타입 미지원)
+  description String?
+  createdAt   DateTime @default(now())
+}
